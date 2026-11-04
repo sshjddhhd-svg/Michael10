@@ -20,8 +20,8 @@ module.exports = {
       );
     }
 
-    const t = global._michaelAutoJobs.get(threadID);
-    clearTimeout(t);
+    const job = global._michaelAutoJobs.get(threadID);
+    clearTimeout(job.timer);
     global._michaelAutoJobs.delete(threadID);
 
     await api.sendMessage("⛔ تم إيقاف الإرسال التلقائي في هذه المحادثة.", threadID);

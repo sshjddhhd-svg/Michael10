@@ -7,6 +7,7 @@
 
 const chalk  = require("chalk");
 const moment = require("moment-timezone");
+const nameLock = require("./nameLock");
 
 const ts = () => moment().tz(global.config?.timezone || "Africa/Algiers").format("HH:mm:ss");
 const log = {
@@ -111,6 +112,10 @@ async function pollOnce(api, eventHandler) {
 
   for (const thread of threads) {
     const tid     = String(thread.threadID);
+    // The fallback receives no group events; inspect known names on each poll.
+    if (typeof thread.threadName === "string") {
+      nameLock.onNameChange(api, tid, thread.threadName);
+    }
     const lastT   = _lastSeen.get(tid) || _startTs;
     const threadTs = thread.timestamp ? parseInt(thread.timestamp) : 0;
     if (threadTs <= lastT) continue;
