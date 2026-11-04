@@ -396,6 +396,13 @@ input.ck-input:focus{border-color:var(--accent)}
     <div><div class="page-title"><span>🍪</span> إدارة الكوكيز</div><div class="page-desc">رفع الكوكيز — تغيير الحساب فوراً بدون إعادة تشغيل</div></div>
   </div>
   <div class="page-content">
+    <div class="panel" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:12px" id="cookies-tabs">
+      <span style="color:var(--muted2);font-size:.8rem">اختر الحساب:</span>
+      <button class="cookie-tab active" data-account="1" onclick="selectAccount('cookies',1)">الحساب ١</button>
+      <button class="cookie-tab" data-account="2" onclick="selectAccount('cookies',2)">الحساب ٢</button>
+      <button class="cookie-tab" data-account="3" onclick="selectAccount('cookies',3)">الحساب ٣</button>
+      <span id="cookies-account-status" style="font-size:.78rem;color:var(--muted2)"></span>
+    </div>
     <!-- Status -->
     <div class="panel">
       <div class="panel-title"><span class="pt-icon">📋</span> الحساب الحالي</div>
@@ -535,6 +542,13 @@ input.ck-input:focus{border-color:var(--accent)}
     <div><div class="page-title"><span>📡</span> التحكم المباشر</div><div class="page-desc">مسنجر مصغر + تنفيذ أي أمر في أي مجموعة — بث فوري</div></div>
     <button class="btn btn-outline btn-sm" onclick="loadLivePage()">🔄 تحديث</button>
   </div>
+  <div style="padding:0 20px"><div class="panel" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:12px" id="live-tabs">
+      <span style="color:var(--muted2);font-size:.8rem">اختر الحساب:</span>
+      <button class="cookie-tab active" data-account="1" onclick="selectAccount('live',1)">الحساب ١</button>
+      <button class="cookie-tab" data-account="2" onclick="selectAccount('live',2)">الحساب ٢</button>
+      <button class="cookie-tab" data-account="3" onclick="selectAccount('live',3)">الحساب ٣</button>
+      <span id="live-account-status" style="font-size:.78rem;color:var(--muted2)"></span>
+    </div></div>
   <!-- Mobile tabs -->
   <div class="live-mob-tabs" id="live-tabs">
     <button class="live-mob-tab act" onclick="setLiveTab('groups',this)">👥 المجموعات</button>
@@ -594,6 +608,13 @@ input.ck-input:focus{border-color:var(--accent)}
     </div>
     <!-- Executor pane -->
     <div id="cmd-pane-exec" style="display:none">
+      <div class="panel" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:12px" id="exec-tabs">
+      <span style="color:var(--muted2);font-size:.8rem">اختر الحساب:</span>
+      <button class="cookie-tab active" data-account="1" onclick="selectAccount('exec',1)">الحساب ١</button>
+      <button class="cookie-tab" data-account="2" onclick="selectAccount('exec',2)">الحساب ٢</button>
+      <button class="cookie-tab" data-account="3" onclick="selectAccount('exec',3)">الحساب ٣</button>
+      <span id="exec-account-status" style="font-size:.78rem;color:var(--muted2)"></span>
+    </div>
       <div class="panel">
         <div class="panel-title"><span class="pt-icon">⚡</span> منفذ الأوامر — تنفيذ أي أمر مباشرة من اللوحة</div>
         <div class="form-row">
@@ -702,6 +723,13 @@ api.sendMessage({ body: "", url: "/uploads/filename.jpg" }, threadID);
     <div><div class="page-title"><span>💬</span> إرسال رسالة</div><div class="page-desc">أرسل رسالة مباشرة لأي محادثة</div></div>
   </div>
   <div class="page-content">
+    <div class="panel" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:12px" id="send-tabs">
+      <span style="color:var(--muted2);font-size:.8rem">اختر الحساب:</span>
+      <button class="cookie-tab active" data-account="1" onclick="selectAccount('send',1)">الحساب ١</button>
+      <button class="cookie-tab" data-account="2" onclick="selectAccount('send',2)">الحساب ٢</button>
+      <button class="cookie-tab" data-account="3" onclick="selectAccount('send',3)">الحساب ٣</button>
+      <span id="send-account-status" style="font-size:.78rem;color:var(--muted2)"></span>
+    </div>
     <div class="panel">
       <div class="send-form">
         <div class="form-row"><label>معرّف المحادثة (threadID)</label><input id="send-tid" placeholder="123456789012345"/></div>
@@ -893,6 +921,27 @@ api.sendMessage({ body: "", url: "/uploads/filename.jpg" }, threadID);
 let _page = 'dashboard';
 let _allCmds = [];
 let _socket = null;
+const _selectedAccounts = { cookies: 1, live: 1, exec: 1, send: 1 };
+let _accountStates = {};
+function selectAccount(section, id){
+  _selectedAccounts[section] = id;
+  document.querySelectorAll(`#${section}-tabs [data-account]`).forEach(b=>b.classList.toggle('active',Number(b.dataset.account)===id));
+  renderAccountStatus(section);
+  if(section==='cookies'){ ['ck-json-input','ck-str-input','ck-tok-input','ck-ns-input'].forEach(id=>$(id).value=''); hideStatus('ck-status'); loadCookieStatus(); }
+  if(section==='live'){ _liveTID=null; _liveGroups=[]; $('lp-chat-hdr').textContent='💬 اختر مجموعة من القائمة'; $('lp-msgs').innerHTML='<div class="live-empty">اختر مجموعة لعرض رسائلها</div>'; renderLiveGroups([]); loadLivePage(); }
+  if(section==='exec'){ $('exec-tid').value=''; loadKnownThreads(); }
+}
+function renderAccountStatus(section){
+  const el=$(section+'-account-status'); if(!el)return;
+  const id=_selectedAccounts[section], state=_accountStates[id];
+  el.textContent=state ? (state.status==='online'?'🟢 متصل':state.status==='connecting'?'🟡 جارٍ الاتصال':state.status==='degraded'?'🟠 الاتصال متعثر':'🔴 غير متصل') : '⏳ جارٍ التحقق';
+}
+async function refreshAccountStates(){
+  await Promise.all([1,2,3].map(async id=>{
+    try { const r=await apiFetch('/api/account-status',{accountId:id}); _accountStates[id]=r.ok?r.data:{status:'offline'}; } catch { _accountStates[id]={status:'offline'}; }
+  }));
+  Object.keys(_selectedAccounts).forEach(renderAccountStatus);
+}
 let _editingCmd = null;
 let _allMedia = [];
 
@@ -911,7 +960,10 @@ const fmtUptime = s => {
 };
 const fmtSize = b => b>1048576?`${(b/1048576).toFixed(1)}MB`:b>1024?`${(b/1024).toFixed(0)}KB`:`${b}B`;
 const apiFetch = async (url, opts={}) => {
-  const r = await fetch(url,{credentials:'include',headers:{'Content-Type':'application/json'},...opts});
+  const {accountId, ...fetchOpts}=opts;
+  let section=url.startsWith('/api/cookies')||url==='/api/relogin'?'cookies':url.startsWith('/api/threads')||url==='/api/execute'?(_page==='live'?'live':'exec'):url==='/api/send'?(_page==='live'?'live':'send'):null;
+  const selected=accountId || (section && _selectedAccounts[section]);
+  const r = await fetch(url,{credentials:'include',...fetchOpts,headers:{'Content-Type':'application/json',...(fetchOpts.headers||{}),...(selected?{'X-Account-ID':String(selected)}:{})}});
   const j = await r.json().catch(()=>({error:'Invalid JSON'}));
   return {ok:r.ok,status:r.status,data:j};
 };
@@ -935,10 +987,11 @@ $('login-pw').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
 /* ══ SOCKET ══ */
 function initSocket(){
   _socket=io({transports:['polling','websocket']});
-  _socket.on('bot-status',d=>updateStatus(d));
-  _socket.on('message',d=>{addLog(d);liveAppendMsg(d);});
+  _socket.on('bot-status',d=>{const id=d.accountId||1; _accountStates[id]=d; Object.keys(_selectedAccounts).forEach(renderAccountStatus); if(id===1)updateStatus(d);});
+  _socket.on('message',d=>{addLog(d);if((d.accountId||1)===_selectedAccounts.live)liveAppendMsg(d);});
   _socket.on('command',d=>addCmdLog(d));
   _socket.on('cookies-updated',d=>{
+    if((d.accountId||1)!==_selectedAccounts.cookies)return;
     loadCookieStatus();
     const msg=d.message||(d.count?`${d.count} كوكي`:'');
     toast(`✅ الكوكيز محدّثة${msg?' — '+msg:''}`, 'ok');
@@ -1050,7 +1103,10 @@ async function loadStats(){
 
 /* ══ COOKIE STATUS ══ */
 async function loadCookieStatus(){
-  const r=await apiFetch('/api/cookies');const d=r.data;const el=$('ck-current');
+  const account=_selectedAccounts.cookies;
+  const r=await apiFetch('/api/cookies',{accountId:account});if(account!==_selectedAccounts.cookies)return;
+  const d=r.data;const el=$('ck-current');
+  if(!r.ok){el.textContent=d.error||'تعذر تحميل حالة الحساب';return;}
   if(!d.exists||!d.count){
     el.innerHTML=`<div style="color:var(--red);font-size:.78rem">❌ لا توجد كوكيز — ارفع الكوكيز أدناه</div>`;
   } else {
@@ -1199,7 +1255,8 @@ function onExecCmdChange(){
   } else { info.style.display='none'; }
 }
 async function loadKnownThreads(){
-  const r=await apiFetch('/api/threads');if(!r.ok)return;
+  const account=_selectedAccounts.exec;
+  const r=await apiFetch('/api/threads',{accountId:account});if(!r.ok||account!==_selectedAccounts.exec)return;
   const sel=$('exec-known-threads');
   sel.innerHTML='<option value="">— اختر محادثة —</option>';
   for(const t of r.data){
@@ -1517,11 +1574,13 @@ function setLiveTab(tab,btn){
   const lay=$('live-layout');if(lay)lay.setAttribute('data-tab',tab);
 }
 async function loadLivePage(){
+  const account=_selectedAccounts.live;
   const [gr,cr,cmdR]=await Promise.all([
     apiFetch('/api/threads'),
     apiFetch('/api/command-roles'),
     apiFetch('/api/commands')
   ]);
+  if(account!==_selectedAccounts.live)return;
   _liveGroups=gr.ok?gr.data:[];
   _liveRoles=cr.ok?cr.data:{};
   _liveCmds=cmdR.ok?cmdR.data:[];
@@ -1551,7 +1610,9 @@ async function selectLiveGroup(tid,name){
   });
   const msgs=$('lp-msgs');if(!msgs)return;
   msgs.innerHTML='<div class="live-empty" style="color:var(--accent2)">⏳ جارٍ تحميل الرسائل…</div>';
-  const r=await apiFetch(`/api/threads/${encodeURIComponent(tid)}/messages`);
+  const account=_selectedAccounts.live;
+  const r=await apiFetch(`/api/threads/${encodeURIComponent(tid)}/messages`,{accountId:account});
+  if(account!==_selectedAccounts.live||_liveTID!==tid)return;
   msgs.innerHTML='';
   const data=r.ok?(Array.isArray(r.data)?r.data:[]):[];
   if(!data.length){msgs.innerHTML='<div class="live-empty">لا توجد رسائل محفوظة بعد — الرسائل الجديدة ستظهر هنا فوراً</div>';return;}
@@ -1611,7 +1672,8 @@ async function sendLiveMsg(){
 
 /* ══ READY ══ */
 async function onReady(){
-  initSocket();await loadStats();loadCookieStatus();
+  initSocket();await loadStats();loadCookieStatus();refreshAccountStates();
+  if(!window._accountStatusTimer)window._accountStatusTimer=setInterval(refreshAccountStates,10000);
   const cfg=await apiFetch('/api/config');if(cfg.ok)window._prefix=cfg.data.prefix||'/';
 }
 /* ══ AUTO INIT ══ */

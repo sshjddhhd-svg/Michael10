@@ -64,4 +64,9 @@ function onNameChange(api, threadID, newName) {
   }, delay);
   pending.set(threadID, timer);
 }
-module.exports = { lock, unlock, onNameChange };
+function clearAll() {
+  for (const id of pending.keys()) cancel(id);
+  for (const id of locks().keys()) bump(id);
+  locks().clear();
+}
+module.exports = { lock, unlock, onNameChange, clearAll };

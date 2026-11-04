@@ -7,8 +7,8 @@ const fs         = require("fs-extra");
 const crypto     = require("crypto");
 const multer     = require("multer");
 
-const ACCOUNT_PATH  = path.join(__dirname, "../../account.txt");
-const CONFIG_PATH   = path.join(__dirname, "../../config.json");
+const { accountPath: ACCOUNT_PATH, configPath: CONFIG_PATH, slot: ACCOUNT_SLOT } = require("../utils/paths");
+const accountManager = ACCOUNT_SLOT === 1 ? require("../utils/accountManager") : null;
 const COMMANDS_DIR  = path.join(__dirname, "../commands");
 const UPLOADS_DIR   = path.join(__dirname, "public/uploads");
 const DEFAULT_PASS  = "djamel2025*";
@@ -16,6 +16,7 @@ const DEFAULT_PASS  = "djamel2025*";
 fs.ensureDirSync(UPLOADS_DIR);
 
 let io;
+let accountStatus = { status: "offline", message: "البوت غير متصل", uid: null };
 const sessions  = new Map();
 const _logBuf   = [];
 
@@ -95,6 +96,7 @@ function isAuth(req) {
 }
 function authMW(req, res, next) {
   const open = ["/api/login", "/api/ping"];
+  if (ACCOUNT_SLOT !== 1 && process.env.BOT_INTERNAL_SECRET && req.headers["x-bot-internal-secret"] === process.env.BOT_INTERNAL_SECRET) return next();
   if (open.includes(req.path) || req.path.startsWith("/socket.io")) return next();
   if (isAuth(req)) return next();
   if (req.path.startsWith("/api/")) return res.status(401).json({ error: "Unauthorized" });
@@ -116,9 +118,18 @@ async function startDashboard(port) {
     allowEIO3: true,
   });
 
-  app.use(bodyParser.json({ limit: "15mb" }));
   app.use((_req, res, next) => { res.set("Cache-Control", "no-store"); next(); });
   app.use(authMW);
+  // Route only account-scoped API calls; authentication remains on the public dashboard.
+  if (ACCOUNT_SLOT === 1) app.use((req, res, next) => {
+    const raw = req.headers["x-account-id"];
+    if (raw !== undefined && !["1", "2", "3"].includes(raw)) return res.status(400).json({ error: "حساب غير صالح" });
+    const account = Number(raw || 1);
+    const scoped = /^\/api\/(cookies(?:\/validate)?|threads(?:\/[^/]+\/messages)?|execute|send|relogin|account-status)$/.test(req.path);
+    if (account !== 1 && scoped) return accountManager.proxy(req, res, account);
+    next();
+  });
+  app.use(bodyParser.json({ limit: "15mb" }));
   app.use(express.static(path.join(__dirname, "public")));
 
   // ── Auth ───────────────────────────────────────────────────────────────────
@@ -170,6 +181,7 @@ async function startDashboard(port) {
     delete safe.dashboardPassword;
     res.json(safe);
   });
+  app.get("/api/account-status", (_req, res) => res.json({ accountId: ACCOUNT_SLOT, ...accountStatus, uid: global.api?.getCurrentUserID() || null }));
   app.post("/api/config", (req, res) => {
     try {
       const cur = fs.existsSync(CONFIG_PATH) ? fs.readJsonSync(CONFIG_PATH) : {};
@@ -180,6 +192,7 @@ async function startDashboard(port) {
       global.botName       = upd.botName  || "jarfis";
       global.commandPrefix = upd.prefix   || "/";
       global.ownerID       = upd.ownerID  || "";
+      accountManager?.broadcastConfig();
       res.json({ success: true });
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
@@ -204,8 +217,9 @@ async function startDashboard(port) {
     global.isAdmin = function(id) {
       const ownerId = global.ownerID || global.config?.ownerID || "";
       if (String(id) === String(ownerId)) return true;
-      return (global.config?.adminIDs || []).map(String).includes(String(id));
+      return [...(global.config?.adminIDs || []), ...(global.config?.subAdminIDs || [])].map(String).includes(String(id));
     };
+    accountManager?.broadcastConfig();
     // 3. بث تحديث لكل العملاء المتصلين عبر Socket
     if (io) io.emit("admins-updated", {
       adminIDs: newIDs.map(String),
@@ -284,6 +298,7 @@ async function startDashboard(port) {
         if (cmd.config?.name)
           [cmd.config.name, ...(cmd.config.aliases || [])].forEach(n => global.commands?.set(n.toLowerCase(), cmd));
       } catch (_) {}
+      accountManager?.reloadCommands();
       res.json({ success: true, name: safe });
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
@@ -300,6 +315,7 @@ async function startDashboard(port) {
         if (cmd.config?.name)
           [cmd.config.name, ...(cmd.config.aliases || [])].forEach(n => global.commands?.set(n.toLowerCase(), cmd));
       } catch (_) {}
+      accountManager?.reloadCommands();
       res.json({ success: true });
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
@@ -311,6 +327,7 @@ async function startDashboard(port) {
       if (global.commands)
         for (const [k, cmd] of global.commands)
           if (cmd.config.name === req.params.name) global.commands.delete(k);
+      accountManager?.reloadCommands();
       res.json({ success: true });
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
@@ -374,16 +391,18 @@ async function startDashboard(port) {
       // ── مساعد: حفظ + hot-swap مع منع مراقب الملفات من تكرار الدخول ──────────
       function _saveCookiesAndRelogin(cookieArr, meta) {
         // اضبط علامة _dashCookieWrite لمنع مراقب account.txt من إطلاق reLoginBot ثانيةً
+        global.invalidatePendingLogin?.();
         global._dashCookieWrite = true;
-        fs.writeFileSync(ACCOUNT_PATH, JSON.stringify(cookieArr, null, 2), "utf8");
+        fs.writeFileSync(ACCOUNT_PATH, JSON.stringify(cookieArr, null, 2), { encoding: "utf8", mode: 0o600 });
+        fs.chmodSync(ACCOUNT_PATH, 0o600);
         // أطلق hot-swap وحيداً من هنا بعد 600ms
         setTimeout(() => {
-          global._dashCookieWrite = false;
           if (global.reLoginBot) {
             if (io) io.emit("bot-status", { status: "connecting", message: "جارٍ تغيير الحساب…" });
             global.reLoginBot();
           }
         }, 600);
+        setTimeout(() => { global._dashCookieWrite = false; }, 6500);
         if (io) io.emit("cookies-updated", meta);
       }
 
@@ -448,7 +467,11 @@ async function startDashboard(port) {
   // DELETE cookies
   app.delete("/api/cookies", (_req, res) => {
     try {
-      fs.writeFileSync(ACCOUNT_PATH, "", "utf8");
+      global.invalidatePendingLogin?.();
+      global._dashCookieWrite = true;
+      fs.writeFileSync(ACCOUNT_PATH, "", { encoding: "utf8", mode: 0o600 });
+      setTimeout(() => { global._dashCookieWrite = false; }, 6500);
+      if (global.reLoginBot) global.reLoginBot();
       if (io) io.emit("cookies-updated", { count: 0, uid: "" });
       res.json({ success: true });
     } catch (e) { res.status(500).json({ error: e.message }); }
@@ -538,6 +561,7 @@ async function startDashboard(port) {
       }
       fs.writeJsonSync(CONFIG_PATH, cfg, { spaces: 2 });
       if (global.config) global.config = cfg;
+      accountManager?.broadcastConfig();
       res.json({ success: true });
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
@@ -555,9 +579,17 @@ async function startDashboard(port) {
   });
   app.post("/api/backup/restore/:ts", async (req, res) => {
     try {
+      global.invalidatePendingLogin?.();
+      global._dashCookieWrite = true;
       const n = await require("../utils/autoBackup").restoreBackup(req.params.ts);
+      const cfg = fs.readJsonSync(CONFIG_PATH);
+      global.config = cfg; global.ownerID = cfg.ownerID || "";
+      global.commandPrefix = cfg.prefix || "/"; global.botName = cfg.botName || "jarfis";
+      accountManager?.broadcastConfig();
+      accountManager?.reloginAll();
+      setTimeout(() => { global._dashCookieWrite = false; }, 6500);
+      if (global.reLoginBot) global.reLoginBot();
       res.json({ success: true, restored: n });
-      setTimeout(() => { if (global.reLoginBot) global.reLoginBot(); }, 1000);
     } catch (e) { res.status(400).json({ error: e.message }); }
   });
   app.get("/api/backup/download/:ts", (req, res) => {
@@ -641,12 +673,6 @@ async function startDashboard(port) {
     const botUID  = String(global.api.getCurrentUserID());
     const execUID = (global.ownerID && String(global.ownerID).trim()) ? String(global.ownerID) : botUID;
 
-    // Temporarily patch global.isOwner so commands that call it directly also pass
-    const _origIsOwner = global.isOwner;
-    const _origIsAdmin = global.isAdmin;
-    global.isOwner = (id) => String(id) === execUID || _origIsOwner?.(id) || false;
-    global.isAdmin = (id) => global.isOwner(id) || _origIsAdmin?.(id) || false;
-
     const results = [];
 
     for (const tid of threads) {
@@ -655,6 +681,7 @@ async function startDashboard(port) {
         const body = `${prefix}${command}${parsedArgs.length ? " " + parsedArgs.join(" ") : ""}`;
         const fakeEvent = {
           type:        "message",
+          _dashboard:  true,
           senderID:    execUID,
           body,
           threadID:    tid,
@@ -687,10 +714,6 @@ async function startDashboard(port) {
       }
     }
 
-    // Restore original permission helpers
-    global.isOwner = _origIsOwner;
-    global.isAdmin = _origIsAdmin;
-
     const ok = results.filter(r => r.success).length;
     res.json({ success: true, results, total: threads.length, ok });
   });
@@ -710,16 +733,31 @@ async function startDashboard(port) {
   // ── System Logs ───────────────────────────────────────────────────────────
   app.get("/api/logs", (_req, res) => res.json(_logBuf));
 
+  // Socket events must carry the originating account for the shared dashboard.
+  const emit = io.emit.bind(io);
+  io.emit = (event, data, ...rest) => {
+    if (["bot-status", "message", "command", "group-event", "cookies-updated"].includes(event)) {
+      data = { ...data, accountId: data?.accountId || ACCOUNT_SLOT };
+      if (event === "bot-status" && data.accountId === ACCOUNT_SLOT) accountStatus = { ...accountStatus, status: data.status, message: data.message };
+      if (ACCOUNT_SLOT !== 1 && process.connected) process.send({ type: "event", event, data });
+    }
+    return emit(event, data, ...rest);
+  };
+  io.use((socket, next) => {
+    const sid = parseCookies(socket.handshake.headers.cookie || "")["_fca_sid"];
+    next(sid && sessions.has(sid) ? undefined : new Error("Unauthorized"));
+  });
   // ── Socket ─────────────────────────────────────────────────────────────────
   io.on("connection", socket => {
     const uid = global.api ? global.api.getCurrentUserID() : null;
     socket.emit("bot-status", {
+      accountId: ACCOUNT_SLOT,
       status:  global.api ? "online" : "offline",
       message: global.api ? `متصل ✔ (${uid})` : "البوت غير متصل",
     });
   });
 
-  await new Promise(resolve => server.listen(port, "0.0.0.0", resolve));
+  await new Promise((resolve, reject) => { server.once("error", reject); server.listen(port, ACCOUNT_SLOT === 1 ? "0.0.0.0" : "127.0.0.1", resolve); });
   return { app, server, io };
 }
 

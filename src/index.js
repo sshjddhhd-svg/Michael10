@@ -17,8 +17,8 @@ const getFbstateFromToken   = require("./utils/getFbstateFromToken");
 const handlerEvents         = require("./handler/handlerEvents");
 const { startPoller, stopPoller } = require("./utils/customPoller");
 
-const CONFIG_PATH  = path.join(__dirname, "../config.json");
-const ACCOUNT_PATH = path.join(__dirname, "../account.txt");
+const { slot: ACCOUNT_SLOT, dataDir, configPath: CONFIG_PATH, accountPath: ACCOUNT_PATH } = require("./utils/paths");
+const accountManager = ACCOUNT_SLOT === 1 ? require("./utils/accountManager") : null;
 
 // ─── Logger ───────────────────────────────────────────────────────────────────
 const ts = () => moment().tz(global.config?.timezone || "Africa/Algiers").format("HH:mm:ss");
@@ -37,6 +37,11 @@ const isAdmin          = id => isDashboardAdmin(id) || (global.config?.subAdminI
 global.isOwner          = isOwner;
 global.isDashboardAdmin = isDashboardAdmin;
 global.isAdmin          = isAdmin;
+// Commands which edit shared admin settings notify the coordinator immediately.
+global.syncSharedConfig = () => {
+  if (ACCOUNT_SLOT === 1) accountManager?.broadcastConfig();
+  else if (process.connected) process.send({ type: "config-changed" });
+};
 
 // ─── Stop Current Listener ────────────────────────────────────────────────────
 function stopListening() {
@@ -66,6 +71,7 @@ function stopListening() {
 
 // ─── HTTP Long-Poll Listener (with custom-poller fallback) ───────────────────
 function startPolling(api, commands, attempt = 1) {
+  if (global.api !== api) return;
   const MAX = 3; // 3 attempts then switch to custom poller
   const io  = getIO();
 
@@ -75,6 +81,7 @@ function startPolling(api, commands, attempt = 1) {
   let errored = false;
 
   const stop = api.listen((err, event) => {
+    if (global.api !== api) return;
     if (err) {
       if (errored) return;
       errored = true;
@@ -113,6 +120,7 @@ function startPolling(api, commands, attempt = 1) {
 
 // ─── MQTT Listener (يُستخدم فقط عند وجود m_sess) ────────────────────────────
 function startMqtt(api, commands, attempt = 1) {
+  if (global.api !== api) return;
   const MAX   = 4;
   const delay = Math.min(attempt * 8000, 40000);
   const io    = getIO();
@@ -124,7 +132,7 @@ function startMqtt(api, commands, attempt = 1) {
 
   // Timeout: إذا لم يتصل MQTT خلال 20 ثانية → HTTP polling
   const timer = setTimeout(() => {
-    if (!mqttStarted) {
+    if (!mqttStarted && global.api === api) {
       log.warn("MQTT timeout — تحويل إلى Long-Poll");
       startPolling(api, commands, 1);
     }
@@ -132,6 +140,7 @@ function startMqtt(api, commands, attempt = 1) {
   global._listenTimer = timer;
 
   const stop = api.listenMqtt((err, event) => {
+    if (global.api !== api) return;
     if (err) {
       clearTimeout(timer);
       if (errored) return;
@@ -204,11 +213,18 @@ async function loadCookies() {
 
 // ─── SINGLE-LOGIN LOCK (منع تسجيل الدخول المزدوج) ───────────────────────────
 let _loginLock = false;
+let _loginAgain = false;
+global.invalidatePendingLogin = () => { if (_loginLock) _loginAgain = true; };
+function finishLogin() {
+  _loginLock = false;
+  if (_loginAgain) { _loginAgain = false; setImmediate(() => startBot()); }
+}
 
 // ─── Main Bot Startup ─────────────────────────────────────────────────────────
 async function startBot() {
   if (_loginLock) {
-    log.warn("تسجيل دخول جارٍ بالفعل — تجاهل الطلب الجديد");
+    log.warn("تسجيل دخول جارٍ — ستُعاد المحاولة بعد انتهائه");
+    _loginAgain = true;
     return;
   }
   _loginLock = true;
@@ -220,7 +236,17 @@ async function startBot() {
   try { require("./protection/stealth").stop(); } catch (_) {}
   try { require("./protection/keepAlive").stop(); } catch (_) {}
   try { require("./protection/mqttHealthCheck").stopHealthCheck(); } catch (_) {}
+  for (const name of ["humanReadReceipt", "naturalPresence", "scrollSimulator", "antiDetection", "sessionRefresher", "reactionDelay", "connectionJitter", "duplicateGuard", "typingVariator", "behaviorScheduler"]) {
+    try { require(`./protection/${name}`).stop(); } catch (_) {}
+  }
+  for (const job of global._michaelAutoJobs?.values() || []) clearTimeout(job.timer);
+  global._michaelAutoJobs?.clear();
+  try { require("./utils/nameLock").clearAll(); } catch (_) {}
+  global._nicknameJobs?.clear();
+  global._nickRestoring?.clear();
   global.api = null;
+  cronTasks.forEach(task => task.stop());
+  cronTasks = [];
 
   if (io) io.emit("bot-status", { status: "connecting", message: "جارٍ تسجيل الدخول…" });
 
@@ -235,7 +261,7 @@ async function startBot() {
   if (!cookies) {
     log.error("لا توجد كوكيز — ارفع الكوكيز من لوحة التحكم");
     if (io) io.emit("bot-status", { status: "offline", message: "لا توجد كوكيز — ارفع من الداشبورد" });
-    _loginLock = false;
+    finishLogin();
     return;
   }
 
@@ -266,6 +292,7 @@ async function startBot() {
     loginAttempt++;
     login(loginOptions, async (err, api) => {
       if (err) {
+        if (_loginAgain) { finishLogin(); return; }
         const msg = err.error || err.message || String(err);
         log.error(`فشل تسجيل الدخول (${loginAttempt}/${MAX_LOGIN}): ${msg}`);
         if (io) io.emit("bot-status", { status: "error", message: `فشل الدخول: ${msg}` });
@@ -277,7 +304,14 @@ async function startBot() {
 
         log.error("وصل لأقصى عدد محاولات تسجيل الدخول");
         if (io) io.emit("bot-status", { status: "offline", message: "فشل الدخول — تحقق من الكوكيز" });
-        _loginLock = false;
+        finishLogin();
+        return;
+      }
+
+      // A newer credential upload supersedes this login; never overwrite it.
+      if (_loginAgain) {
+        try { api.stopListening?.(() => {}); } catch (_) {}
+        finishLogin();
         return;
       }
 
@@ -327,17 +361,18 @@ async function startBot() {
       log.ok("🛡️ جميع أنظمة الحماية (16 نظام) نشطة");
 
       // Start auto-backup
-      try { require("./utils/autoBackup").start(); } catch (_) {}
+      if (ACCOUNT_SLOT === 1) try { require("./utils/autoBackup").start(); } catch (_) {}
 
       // Setup cron jobs
       setupCronJobs(api);
 
       // Release login lock BEFORE starting listener
-      _loginLock = false;
+      finishLogin();
 
       // Wait 1.5s then start listener
       // m_sess → try MQTT first | no m_sess → direct Long-Poll
       await new Promise(r => setTimeout(r, 1500));
+      if (global.api !== api || _loginLock) return;
       if (hasMsess) {
         startMqtt(api, commands, 1);
       } else {
@@ -386,11 +421,14 @@ process.on("unhandledRejection", (reason) => {
 });
 
 // ─── Cron Jobs ────────────────────────────────────────────────────────────────
+let cronTasks = [];
 function setupCronJobs(api) {
+  cronTasks.forEach(task => task.stop());
+  cronTasks = [];
   for (const job of global.config?.cronJobs || []) {
     if (!job.cron || !job.threadID || !job.message) continue;
     try {
-      cron.schedule(job.cron, () => api.sendMessage(job.message, job.threadID, () => {}));
+      cronTasks.push(cron.schedule(job.cron, () => api.sendMessage(job.message, job.threadID, () => {})));
       log.ok(`Cron: "${job.cron}" → ${job.threadID}`);
     } catch (e) { log.warn(`Cron: ${e.message}`); }
   }
@@ -414,6 +452,11 @@ function printBanner() {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 async function main() {
   printBanner();
+  // A Railway volume is optional; seed it once from the existing configuration.
+  const legacyConfig = path.join(__dirname, "../config.json");
+  if (process.env.BOT_DATA_DIR && !fs.existsSync(CONFIG_PATH) && fs.existsSync(legacyConfig)) fs.copyFileSync(legacyConfig, CONFIG_PATH);
+  const legacyAccount = path.join(__dirname, "../account.txt");
+  if (process.env.BOT_DATA_DIR && ACCOUNT_SLOT === 1 && !fs.existsSync(ACCOUNT_PATH) && fs.existsSync(legacyAccount)) fs.copyFileSync(legacyAccount, ACCOUNT_PATH);
   await initDB();
   log.ok("قاعدة البيانات جاهزة");
 
@@ -464,8 +507,28 @@ async function main() {
   if (!fs.existsSync(ACCOUNT_PATH)) fs.writeFileSync(ACCOUNT_PATH, "", "utf8");
 
   const port = parseInt(process.env.PORT || config.dashboardPort || 5000, 10);
-  await startDashboard(port);
-  log.ok(`لوحة التحكم → http://0.0.0.0:${port}`);
+  const dashboard = await startDashboard(port);
+  if (ACCOUNT_SLOT === 1) {
+    accountManager.start(dashboard.io);
+    process.on("exit", () => accountManager.stop());
+    log.ok(`لوحة التحكم → http://0.0.0.0:${port}`);
+  } else if (process.send) {
+    process.send({ type: "ready", port: dashboard.server.address().port });
+    process.on("message", msg => {
+      if (msg?.type === "config" && msg.config) {
+        global.config = msg.config; global.ownerID = msg.config.ownerID || "";
+        global.commandPrefix = msg.config.prefix || "/"; global.botName = msg.config.botName || "jarfis";
+      } else if (msg?.type === "relogin") {
+        global.invalidatePendingLogin?.(); global._dashCookieWrite = true;
+        setTimeout(() => { global._dashCookieWrite = false; }, 6500);
+        global.reLoginBot?.();
+      } else if (msg?.type === "reloadCommands") {
+        for (const file of Object.keys(require.cache)) if (file.startsWith(path.join(__dirname, "commands") + path.sep)) delete require.cache[file];
+        global.commands = loadCommands(path.join(__dirname, "commands"));
+      }
+    });
+    process.on("disconnect", () => process.exit(0));
+  }
 
   // ── File Watcher: تغيير account.txt → hot-swap ────────────────────────────
   let _watchMtime  = 0;

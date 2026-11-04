@@ -20,7 +20,7 @@ function log(level, msg) {
   if (level === "info") console.log(`${chalk.gray(ts)} ${chalk.cyan("•")} [SESS_REF] ${msg}`);
 }
 
-const ACCOUNT_PATH = path.join(__dirname, "../../account.txt");
+const ACCOUNT_PATH = require("../utils/paths").accountPath;
 
 let _running = false;
 let _api = null;
