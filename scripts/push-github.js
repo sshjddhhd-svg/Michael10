@@ -62,7 +62,7 @@ function ghRequest(method, endpoint, body = null) {
         "Authorization":        `Bearer ${TOKEN}`,
         "Accept":               "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
-        "User-Agent":           "jarfis-bot-push",
+        "User-Agent":           "michael-bot-push",
         "Content-Type":         "application/json",
         ...(payload ? { "Content-Length": Buffer.byteLength(payload) } : {}),
       },

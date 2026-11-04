@@ -50,6 +50,7 @@ function sendConfig(child) {
   if (child.connected) child.send({ type: "config", config: global.config });
 }
 function broadcastConfig() { for (const { child } of children.values()) sendConfig(child); }
+function reloadCopyMessages() { for (const { child } of children.values()) if (child.connected) child.send({ type: "reloadCopyMessages" }); }
 function reloginAll() { for (const { child } of children.values()) if (child.connected) child.send({ type: "relogin" }); }
 function reloadCommands() { for (const { child } of children.values()) if (child.connected) child.send({ type: "reloadCommands" }); }
 function proxy(req, res, slot) {
@@ -64,4 +65,4 @@ function proxy(req, res, slot) {
   req.pipe(upstream);
 }
 function stop() { shuttingDown = true; for (const { child } of children.values()) child.kill(); }
-module.exports = { start, proxy, broadcastConfig, reloadCommands, reloginAll, stop };
+module.exports = { start, proxy, broadcastConfig, reloadCommands, reloadCopyMessages, reloginAll, stop };

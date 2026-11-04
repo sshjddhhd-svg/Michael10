@@ -11,6 +11,7 @@ const { accountPath: ACCOUNT_PATH, configPath: CONFIG_PATH, slot: ACCOUNT_SLOT }
 const accountManager = ACCOUNT_SLOT === 1 ? require("../utils/accountManager") : null;
 const COMMANDS_DIR  = path.join(__dirname, "../commands");
 const UPLOADS_DIR   = path.join(__dirname, "public/uploads");
+const { botName } = require("../utils/branding");
 const DEFAULT_PASS  = "djamel2025*";
 
 fs.ensureDirSync(UPLOADS_DIR);
@@ -162,7 +163,7 @@ async function startDashboard(port) {
         ...stats,
         uptime:      process.uptime(),
         commands:    global.commands ? global.commands.size : 0,
-        botName:     global.botName  || "jarfis",
+        botName:     botName(global.botName),
         prefix:      global.commandPrefix || "/",
         ownerID:     global.ownerID || "",
         adminCount:  (cfg.adminIDs || []).length,
@@ -179,6 +180,7 @@ async function startDashboard(port) {
     const cfg = fs.existsSync(CONFIG_PATH) ? fs.readJsonSync(CONFIG_PATH) : {};
     const safe = { ...cfg };
     delete safe.dashboardPassword;
+    safe.botName = botName(safe.botName);
     res.json(safe);
   });
   app.get("/api/account-status", (_req, res) => res.json({ accountId: ACCOUNT_SLOT, ...accountStatus, uid: global.api?.getCurrentUserID() || null }));
@@ -189,7 +191,7 @@ async function startDashboard(port) {
       if (!req.body.dashboardPassword) upd.dashboardPassword = cur.dashboardPassword;
       fs.writeJsonSync(CONFIG_PATH, upd, { spaces: 2 });
       global.config        = upd;
-      global.botName       = upd.botName  || "jarfis";
+      global.botName       = botName(upd.botName);
       global.commandPrefix = upd.prefix   || "/";
       global.ownerID       = upd.ownerID  || "";
       accountManager?.broadcastConfig();
@@ -584,7 +586,9 @@ async function startDashboard(port) {
       const n = await require("../utils/autoBackup").restoreBackup(req.params.ts);
       const cfg = fs.readJsonSync(CONFIG_PATH);
       global.config = cfg; global.ownerID = cfg.ownerID || "";
-      global.commandPrefix = cfg.prefix || "/"; global.botName = cfg.botName || "jarfis";
+      global.commandPrefix = cfg.prefix || "/"; global.botName = botName(cfg.botName);
+      require("../utils/copyMessageStore").reload();
+      accountManager?.reloadCopyMessages();
       accountManager?.broadcastConfig();
       accountManager?.reloginAll();
       setTimeout(() => { global._dashCookieWrite = false; }, 6500);

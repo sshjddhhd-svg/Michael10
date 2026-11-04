@@ -1,10 +1,19 @@
 "use strict";
-const { test } = require("node:test");
+const { test, after } = require("node:test");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+const testDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "michael-copy-"));
+process.env.BOT_DATA_DIR = testDataDir;
+process.env.BOT_ACCOUNT_SLOT = "1";
+after(() => fs.rmSync(testDataDir, { recursive: true, force: true }));
 const assert = require("node:assert/strict");
 const nameLock = require("../src/utils/nameLock");
 const nameCommand = require("../src/commands/اسم");
 const copy = require("../src/commands/انسخ");
 const stop = require("../src/commands/توقف");
+const journal = require("../src/commands/جريدة");
+const store = require("../src/utils/copyMessageStore");
 
 // Controllable timers let us exercise multi-second schedules instantly.
 function fakeTimers(t) {
@@ -61,6 +70,7 @@ test("name lock uses latest name and handles a change while restoring", async (t
 test("copy timing is per conversation, validated, and applied at the next schedule", async (t) => {
   const clock = fakeTimers(t); const api = apiMock();
   global._michaelAutoJobs = new Map(); global._copyDelays = new Map(); Math.random = () => 0;
+  store.set("a", "النص التجريبي");
   await copy.run({ api, threadID: "a", args: [] });
   let [id, timer] = [...clock.timers][0]; assert.equal(timer.ms, 20000);
   await copy.run({ api, threadID: "a", args: ["وقت", "30"] });
@@ -79,6 +89,7 @@ test("copy timing is per conversation, validated, and applied at the next schedu
 test("stopping and restarting during typing cannot revive the old copy job", async (t) => {
   const clock = fakeTimers(t); const api = apiMock();
   global._michaelAutoJobs = new Map(); global._copyDelays = new Map(); Math.random = () => 0;
+  store.set("a", "النص التجريبي");
   await copy.run({ api, threadID: "a", args: [] });
   clock.run([...clock.timers.keys()][0]);
   const oldTyping = [...clock.timers.keys()][0];
@@ -119,6 +130,7 @@ test("copy delay accepts minute and second suffixes while preserving numeric sec
 test("configured minute and second delays produce the correct timer durations", async (t) => {
   const clock = fakeTimers(t); const api = apiMock();
   global._copyDelays = new Map(); global._michaelAutoJobs = new Map();
+  store.set("minutes", "دقائق"); store.set("seconds", "ثواني");
   await copy.run({ api, threadID: "minutes", args: ["وقت", "5m"] });
   await copy.run({ api, threadID: "seconds", args: ["وقت", "40s"] });
   await copy.run({ api, threadID: "minutes", args: [] });
@@ -126,4 +138,70 @@ test("configured minute and second delays produce the correct timer durations", 
   assert.deepEqual([...clock.timers.values()].map(timer => timer.ms), [300000, 40000]);
   await stop.run({ api, threadID: "minutes" });
   await stop.run({ api, threadID: "seconds" });
+});
+
+test("copy requires a journal message but timing commands still work", async (t) => {
+  const clock = fakeTimers(t); const api = apiMock();
+  global._michaelAutoJobs = new Map(); global._copyDelays = new Map();
+  await copy.run({ api, threadID: "not-set", args: [] });
+  assert.match(api.messages.at(-1)[0], /جريدة/);
+  assert.equal(clock.timers.size, 0);
+  await copy.run({ api, threadID: "not-set", args: ["وقت", "5m"] });
+  assert.equal(global._copyDelays.get("not-set"), 300);
+});
+
+test("journal preserves multiline text and isolates conversations", async () => {
+  const api = apiMock();
+  const original = "السطر الأول  فيه مسافتان\n\nالسطر الثاني 🕷️";
+  await journal.run({ api, threadID: "chat-1", body: `/جريدة ${original}`, prefix: "/" });
+  await journal.run({ api, threadID: "chat-2", event: { body: "!جريدة رسالة أخرى" }, prefix: "!" });
+  assert.equal(store.get("chat-1"), original);
+  assert.equal(store.get("chat-2"), "رسالة أخرى");
+  await journal.run({ api, threadID: "chat-1", body: "/جريدة \n \t", prefix: "/" });
+  assert.equal(store.get("chat-1"), original);
+  assert.match(api.messages.at(-1)[0], /اكتب الرسالة/);
+  store.reload();
+  assert.equal(store.get("chat-1"), original);
+});
+
+test("active copy uses the most recently saved message on the next send", async (t) => {
+  const clock = fakeTimers(t); const api = apiMock(); Math.random = () => 0;
+  global._michaelAutoJobs = new Map(); global._copyDelays = new Map();
+  await journal.run({ api, threadID: "live", body: "/جريدة أول نص", prefix: "/" });
+  await copy.run({ api, threadID: "live", args: [] });
+  await journal.run({ api, threadID: "live", body: "/جريدة نص جديد\nسطر آخر", prefix: "/" });
+  clock.run([...clock.timers.keys()][0]);
+  clock.run([...clock.timers.keys()][0]); await flush();
+  assert.equal(api.messages.at(-1)[0], "نص جديد\nسطر آخر");
+  await stop.run({ api, threadID: "live" });
+});
+
+test("saved messages survive process reload and are isolated by account", () => {
+  const { spawnSync } = require("node:child_process");
+  const env = { ...process.env, BOT_DATA_DIR: testDataDir };
+  const program = `const s=require('./src/utils/copyMessageStore'); process.stdout.write(JSON.stringify(s.get('chat-1') || null))`;
+  const run = slot => spawnSync(process.execPath, ["-e", program], { cwd: path.join(__dirname, ".."), env: { ...env, BOT_ACCOUNT_SLOT: String(slot) }, encoding: "utf8" });
+  assert.equal(run(1).stdout, JSON.stringify("السطر الأول  فيه مسافتان\n\nالسطر الثاني 🕷️"));
+  assert.equal(run(2).stdout, "null");
+});
+
+test("branding maps the old default without changing custom names", () => {
+  const { botName } = require("../src/utils/branding");
+  assert.equal(botName("jarfis"), "Michael");
+  assert.equal(botName(undefined), "Michael");
+  assert.equal(botName("اسم خاص"), "اسم خاص");
+});
+
+test("invalid saved data is not silently overwritten", async () => {
+  const api = apiMock();
+  const file = path.join(testDataDir, "copy-messages-1.json");
+  const previous = fs.readFileSync(file, "utf8");
+  fs.writeFileSync(file, "{bad-json"); store.reload();
+  try {
+    await journal.run({ api, threadID: "broken", body: "/جريدة رسالة", prefix: "/" });
+    assert.match(api.messages.at(-1)[0], /تعذّر حفظ/);
+    assert.equal(fs.readFileSync(file, "utf8"), "{bad-json");
+  } finally {
+    fs.writeFileSync(file, previous); store.reload();
+  }
 });

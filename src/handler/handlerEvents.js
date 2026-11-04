@@ -119,6 +119,10 @@ module.exports = async function handlerEvents(api, event, commands) {
     // Emit to dashboard
     if (io) io.emit("message", msgData);
 
+    // /جريدة waits for a text message from the same administrator and thread.
+    const journal = commands?.get("جريدة");
+    if (isAdmin && journal?.handlePending && await journal.handlePending({ api, event, prefix, commands })) return;
+
     if (!isCmd) return;
 
     // ── Lock Check ────────────────────────────────────────────────────────────

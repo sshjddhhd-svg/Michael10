@@ -19,6 +19,7 @@ const { startPoller, stopPoller } = require("./utils/customPoller");
 
 const { slot: ACCOUNT_SLOT, dataDir, configPath: CONFIG_PATH, accountPath: ACCOUNT_PATH } = require("./utils/paths");
 const accountManager = ACCOUNT_SLOT === 1 ? require("./utils/accountManager") : null;
+const { botName } = require("./utils/branding");
 
 // ─── Logger ───────────────────────────────────────────────────────────────────
 const ts = () => moment().tz(global.config?.timezone || "Africa/Algiers").format("HH:mm:ss");
@@ -241,6 +242,7 @@ async function startBot() {
   }
   for (const job of global._michaelAutoJobs?.values() || []) clearTimeout(job.timer);
   global._michaelAutoJobs?.clear();
+  global._pendingCopyMessages?.clear();
   try { require("./utils/nameLock").clearAll(); } catch (_) {}
   global._nicknameJobs?.clear();
   global._nickRestoring?.clear();
@@ -438,11 +440,11 @@ function setupCronJobs(api) {
 function printBanner() {
   const lines = [
     "  ╔══════════════════════════════════════════════════╗",
-    "  ║   🤖  jarfis Bot  v3.1.0                         ║",
-    "  ║   ⚡  @dongdev/fca-unofficial  |  WHITE Engine     ║",
+    "  ║   🤖  Michael Bot v3.1.0                         ║",
+    "  ║   ⚡  @dongdev/fca-unofficial  |  Michael Engine   ║",
     "  ║   🍪  account.txt  —  No m_sess required         ║",
     "  ║   🔄  Hot-Swap  |  Auto-Backup  |  MQTT→Poll     ║",
-    "  ║   👑  Owner: djamel                              ║",
+    "  ║   ©  Michael                                    ║",
     "  ╚══════════════════════════════════════════════════╝",
   ].join("\n");
   console.log(gradient.rainbow(lines));
@@ -470,7 +472,7 @@ async function main() {
   if (!global._nickRestoring) global._nickRestoring = new Set();
 
   const defaults = {
-    botName: "jarfis", prefix: "/", ownerID: "", adminIDs: [],
+    botName: "Michael", prefix: "/", ownerID: "", adminIDs: [],
     dashboardPort: 5000, timezone: "Africa/Algiers",
     dashboardPassword: "djamel2025*",
     humanTyping:     { enable: true },
@@ -496,7 +498,7 @@ async function main() {
   global.config        = config;
   global.commandPrefix = config.prefix   || "/";
   global.ownerID       = config.ownerID  || "";
-  global.botName       = config.botName  || "jarfis";
+  global.botName       = botName(config.botName);
 
   log.info(`البوت: ${chalk.bold.cyan(global.botName)} | بادئة: ${chalk.cyan(global.commandPrefix)} | مالك: ${chalk.cyan(global.ownerID || "غير محدد")}`);
 
@@ -517,7 +519,9 @@ async function main() {
     process.on("message", msg => {
       if (msg?.type === "config" && msg.config) {
         global.config = msg.config; global.ownerID = msg.config.ownerID || "";
-        global.commandPrefix = msg.config.prefix || "/"; global.botName = msg.config.botName || "jarfis";
+        global.commandPrefix = msg.config.prefix || "/"; global.botName = botName(msg.config.botName);
+      } else if (msg?.type === "reloadCopyMessages") {
+        require("./utils/copyMessageStore").reload();
       } else if (msg?.type === "relogin") {
         global.invalidatePendingLogin?.(); global._dashCookieWrite = true;
         setTimeout(() => { global._dashCookieWrite = false; }, 6500);

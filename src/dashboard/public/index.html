@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/>
-<title>jarfis — لوحة التحكم</title>
+<title>Michael — لوحة التحكم</title>
 <script src="/socket.io/socket.io.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -300,12 +300,12 @@ input.ck-input:focus{border-color:var(--accent)}
 <div id="login-screen">
   <div class="lc">
     <div class="lc-ico">🤖</div>
-    <div class="lc-title">jarfis Bot</div>
+    <div class="lc-title">Michael Bot</div>
     <div class="lc-sub">لوحة التحكم المتكاملة — v3.1</div>
     <input type="password" id="login-pw" placeholder="كلمة المرور" autocomplete="current-password"/>
     <button class="lc-btn" onclick="doLogin()">دخول</button>
     <div class="lc-err" id="login-err"></div>
-    <div class="lc-copy">© 2026 djamel · Jarfis Bot v3.1</div>
+    <div class="lc-copy">© 2026 Michael · Michael Bot v3.1</div>
   </div>
 </div>
 
@@ -317,8 +317,8 @@ input.ck-input:focus{border-color:var(--accent)}
   <div class="sb-brand">
     <div class="logo">🤖</div>
     <div class="info">
-      <div class="name">jarfis Bot</div>
-      <div class="ver">v3.1 · White Engine</div>
+      <div class="name">Michael Bot</div>
+      <div class="ver">v3.1 · Michael Engine</div>
     </div>
   </div>
   <div class="sb-status-box">
@@ -496,7 +496,7 @@ input.ck-input:focus{border-color:var(--accent)}
 <!-- ══ PROTECTION ══ -->
 <div id="page-protection" class="page hidden">
   <div class="page-header">
-    <div><div class="page-title"><span>🛡️</span> الحماية</div><div class="page-desc">WHITE Engine v2 — 16 نظام حماية لمحاكاة الإنسان</div></div>
+    <div><div class="page-title"><span>🛡️</span> الحماية</div><div class="page-desc">Michael Engine v2 — 16 نظام حماية لمحاكاة الإنسان</div></div>
     <div style="display:flex;gap:8px">
       <button class="btn btn-outline btn-sm" onclick="enableAllProt()">✅ تفعيل الكل</button>
       <button class="btn btn-outline btn-sm" onclick="loadProtection()">🔄 تحديث</button>
@@ -580,6 +580,7 @@ input.ck-input:focus{border-color:var(--accent)}
     <div class="live-panel" id="lp-cmds">
       <div class="live-panel-hdr">⚡ أوامر البوت</div>
       <div style="padding:6px 8px;border-bottom:1px solid var(--border);font-size:.63rem;color:var(--muted2);flex-shrink:0">اضغط أي أمر لتنفيذه في المجموعة المحددة</div>
+      <textarea id="lp-journal-text" rows="3" placeholder="نص الجريدة للمجموعة المحددة، ثم اضغط جريدة" style="margin:8px;padding:8px;background:#080816;border:1px solid var(--border);border-radius:8px;color:var(--text);resize:vertical"></textarea>
       <div id="lp-cmd-grid" style="overflow-y:auto;flex:1;padding:7px;display:grid;grid-template-columns:1fr 1fr;gap:5px">
         <div class="live-empty" style="grid-column:span 2">جارٍ التحميل…</div>
       </div>
@@ -822,7 +823,7 @@ api.sendMessage({ body: "", url: "/uploads/filename.jpg" }, threadID);
   <div class="page-content">
     <div class="panel">
       <div class="form-grid">
-        <div class="form-row"><label>اسم البوت</label><input id="cfg-name" placeholder="jarfis"/></div>
+        <div class="form-row"><label>اسم البوت</label><input id="cfg-name" placeholder="Michael"/></div>
         <div class="form-row"><label>البادئة (Prefix)</label><input id="cfg-prefix" placeholder="/"/></div>
         <div class="form-row"><label>UID المالك</label><input id="cfg-owner" placeholder="100000000000000"/></div>
         <div class="form-row"><label>المنطقة الزمنية</label><input id="cfg-tz" placeholder="Africa/Algiers"/></div>
@@ -1089,7 +1090,7 @@ async function loadStats(){
   $('st-threads').textContent=d.totalThreads??'—';
   $('st-cmds').textContent=d.totalCommands??'—';
   $('st-uptime').textContent=fmtUptime(d.uptime||0);
-  $('inf-name').textContent=d.botName||'jarfis';
+  $('inf-name').textContent=d.botName||'Michael';
   $('inf-prefix').textContent=d.prefix||'/';
   $('inf-cmdcount').textContent=d.commands||'—';
   $('inf-admins').textContent=d.adminCount??'—';
@@ -1550,7 +1551,7 @@ async function changePw(){
 /* ══ CONFIG ══ */
 async function loadConfig(){
   const r=await apiFetch('/api/config');if(!r.ok)return;const d=r.data;
-  $('cfg-name').value=d.botName||'jarfis';$('cfg-prefix').value=d.prefix||'/';
+  $('cfg-name').value=d.botName||'Michael';$('cfg-prefix').value=d.prefix||'/';
   $('cfg-owner').value=d.ownerID||'';$('cfg-tz').value=d.timezone||'Africa/Algiers';
   window._prefix=d.prefix||'/';
 }
@@ -1656,7 +1657,9 @@ function renderLiveCmds(){
 }
 async function runLiveCmd(cmdName){
   if(!_liveTID){toast('اختر مجموعة أولاً ثم اضغط الأمر','err');setLiveTab('groups',document.querySelector('.live-mob-tab'));return;}
-  const r=await apiFetch('/api/execute',{method:'POST',body:JSON.stringify({command:cmdName,args:[],threadID:_liveTID})});
+  let args=[];
+  if(cmdName==='جريدة'){const input=$('lp-journal-text');if(!input.value.trim()){input.focus();toast('اكتب نص الجريدة أولاً','err');return;}args=[input.value];}
+  const r=await apiFetch('/api/execute',{method:'POST',body:JSON.stringify({command:cmdName,args,threadID:_liveTID})});
   if(r.ok){const d=r.data;toast(`⚡ ${cmdName}: ${d.ok||0}/${d.total||1} ناجح`,d.ok>0?'ok':'err');}
   else toast(r.data?.error||'خطأ في التنفيذ','err');
 }

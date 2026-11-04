@@ -31,6 +31,7 @@ async function doBackup() {
     const filesToBackup = [
       { src: accountPath, dst: "account.txt" },
       ...[2, 3].map(slot => ({ src: path.join(dataDir, `account-${slot}.txt`), dst: `account-${slot}.txt` })),
+      ...[1, 2, 3].map(slot => ({ src: path.join(dataDir, `copy-messages-${slot}.json`), dst: `copy-messages-${slot}.json` })),
       { src: configPath, dst: "config.json" },
       { src: databasePath, dst: "bot.db" },
       ...[2, 3].map(slot => ({ src: path.join(dataDir, `bot-${slot}.db`), dst: `bot-${slot}.db` })),
@@ -105,6 +106,7 @@ async function restoreBackup(ts) {
   const filesToRestore = [
     { src: path.join(dir, "account.txt"), dst: accountPath },
     ...[2, 3].map(slot => ({ src: path.join(dir, `account-${slot}.txt`), dst: path.join(dataDir, `account-${slot}.txt`) })),
+    ...[1, 2, 3].map(slot => ({ src: path.join(dir, `copy-messages-${slot}.json`), dst: path.join(dataDir, `copy-messages-${slot}.json`) })),
     { src: path.join(dir, "config.json"), dst: configPath },
   ];
 
