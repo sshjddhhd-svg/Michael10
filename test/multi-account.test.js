@@ -25,9 +25,9 @@ function countCommands(file, user = "999") {
   });
 }
 
-test('three isolated account processes share admin changes and route dashboard requests', { timeout: 45000 }, async t => {
+test('three isolated account processes share admin changes and route dashboard requests', { timeout: 60000 }, async t => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'multi-bot-'));
-  fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ prefix: '/', ownerID: 'owner', adminIDs: [], dashboardPassword: 'test-password', cronJobs: [] }));
+  fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ botName: 'jarfis', prefix: '/', ownerID: 'owner', adminIDs: [], dashboardPassword: 'test-password', cronJobs: [] }));
   const server = net.createServer(); await new Promise(r => server.listen(0, '127.0.0.1', r));
   const port = server.address().port; await new Promise(r => server.close(r));
   let child = spawn(process.execPath, ['src/index.js'], { cwd: root, env: { ...process.env, PORT: String(port), BOT_DATA_DIR: dir, NODE_OPTIONS: `--require=${path.join(root, 'test/fixtures/mock-facebook.js')}` }, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -40,6 +40,8 @@ test('three isolated account processes share admin changes and route dashboard r
   assert.equal(login.status, 200); const cookie = login.headers.get('set-cookie').split(';')[0];
   const call = (url, slot, method = 'GET', body) => fetch(base + url, { method, headers: { cookie, 'Content-Type': 'application/json', 'X-Account-ID': String(slot) }, ...(body ? { body: JSON.stringify(body) } : {}) });
   await eventually(async () => (await call('/api/account-status', 2)).ok && (await call('/api/account-status', 3)).ok);
+  assert.equal((await (await call('/api/config', 1)).json()).botName, 'Michael');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'config.json'))).botName, 'jarfis');
   assert.equal((await call('/api/cookies', 4)).status, 400);
   for (const id of [1, 2, 3]) {
     const r = await call('/api/cookies', id, 'POST', { cookies: `c_user=${id}00; xs=fake${id}` });
@@ -62,6 +64,30 @@ test('three isolated account processes share admin changes and route dashboard r
     assert.equal(sent.status, 200);
     assert.match(fs.readFileSync(path.join(dir, `sent-${id}00.jsonl`), 'utf8'), new RegExp(`hello-${id}`));
   }
+  // The same conversation ID has separate journal text for each account.
+  for (const id of [1, 2, 3]) {
+    const text = `خبر ${id}  مسافتان\nالسطر الثاني`;
+    const result = await (await call('/api/execute', id, 'POST', { command: 'جريدة', args: [text], threadID: 'shared' })).json();
+    assert.equal(result.ok, 1);
+    assert.equal(JSON.parse(fs.readFileSync(path.join(dir, `copy-messages-${id}.json`))).shared, text);
+  }
+  // Restoring a backup reloads the account worker's cached journal as well as the file.
+  const backup = await (await call('/api/backup/now', 1, 'POST', {})).json();
+  assert.ok(backup.lastBackup?.ts);
+  await call('/api/execute', 2, 'POST', { command: 'جريدة', args: ['محتوى مؤقت'], threadID: 'shared' });
+  const restored = await call(`/api/backup/restore/${backup.lastBackup.ts}`, 1, 'POST', {});
+  assert.equal(restored.status, 200);
+  await eventually(async () => {
+    const state = await (await call('/api/account-status', 2)).json();
+    return state.status === 'online';
+  });
+  await call('/api/execute', 2, 'POST', { command: 'انسخ', args: ['وقت', '1s'], threadID: 'shared' });
+  await call('/api/execute', 2, 'POST', { command: 'انسخ', threadID: 'shared' });
+  await eventually(async () => {
+    const lines = fs.readFileSync(path.join(dir, 'sent-200.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
+    return lines.some(item => item.tid === 'shared' && item.msg === 'خبر 2  مسافتان\nالسطر الثاني');
+  }, 12000);
+  await call('/api/execute', 2, 'POST', { command: 'توقف', threadID: 'shared' });
   // A helper admin promoted from account 2 is immediately shared with all accounts.
   const promote = await (await call('/api/execute', 2, 'POST', { command: 'ارفع', args: ['777'], threadID: 'thread-200' })).json();
   assert.equal(promote.ok, 1);
@@ -85,4 +111,9 @@ test('three isolated account processes share admin changes and route dashboard r
     if (!r.ok) return false; const state = await r.json(); return state.status === 'online' && state.uid === `${id}00`;
   });
   assert.ok(JSON.parse(fs.readFileSync(path.join(dir, 'config.json'))).adminIDs.includes('999'));
+  for (const id of [1, 3]) {
+    assert.equal(JSON.parse(fs.readFileSync(path.join(dir, `copy-messages-${id}.json`))).shared, `خبر ${id}  مسافتان\nالسطر الثاني`);
+    const r = await fetch(base + '/api/execute', { method: 'POST', headers: { cookie: cookieAgain, 'Content-Type': 'application/json', 'X-Account-ID': String(id) }, body: JSON.stringify({ command: 'انسخ', threadID: 'shared' }) });
+    assert.equal((await r.json()).ok, 1);
+  }
 });

@@ -1,22 +1,7 @@
 
 "use strict";
 
-const AUTO_MSG = `𝑨𝑼𝑻𝑶 𝑹𝑬𝑷𝑳𝒀
-
-𝑲𝑰𝑵𝑮 𝑴𝑼𝒁𝑨𝑵 『༴‌卍⋆‌🕷️👑』⇣؍.َِ"
-
-🕷️𝑳𝑶𝑹𝑫 𝐒𝐏𝐈𝐃𝐄𝐑𝐒 ..➪ 𝑴𝑼𝒁𝑨𝑵 𝑲𝑶𝑵🕷️
-
-♕︎ 𝑻𝑯𝑬 𝑩𝑬𝑺𝑻  ♕︎
-
-𖢩🅝𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅘𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅚𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅗𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅛𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅕𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅘𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅡𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅐𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅝𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅘𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅚𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅗𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅛𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅕𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅘𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅡𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅐𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅝𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅘𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅚𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅗𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅛𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅕𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅘𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅡𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅐𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅝𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅘𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅚𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅗𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅛𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅕𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅘𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅡𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅐𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅝𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅘𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅚𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅗𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅛𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅕𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅘𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅡𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅐𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅝𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅘𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅚𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅗𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅛𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅕𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅘𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅡𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸𖢩🅐𖢩👑𖢩𒁢𖢩🕷️𖢩𒁢𖢩🩸
-
-〘🥊─卍─🥊〙
-
-
-𝐒𝐏𝐈𝐃𝐄𝐑𝐒 𝑻𝑯𝑬 𝑺𝑻𝑹𝑶𝑵𝑮𝑬𝑺𝑻 𝑶𝑭 𝑨𝑳𝑳 𝑻𝑰𝑴𝑬  『༴‌卍⋆‌🕷️』⇣؍.َِ
-
-𝑲𝑰𝑵𝑮 𝑴𝑼𝒁𝑨𝑵┊ 🕷️👑』⇣┊"`;
+const messages = require("../utils/copyMessageStore");
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
@@ -26,7 +11,7 @@ module.exports = {
   config: {
     name: "انسخ",
     aliases: ["نسخ"],
-    description: "تشغيل الإرسال التلقائي وضبط وقت الانتظار",
+    description: "تشغيل إرسال الرسالة المحددة بأمر جريدة وضبط وقت الانتظار",
     usage: "انسخ | انسخ وقت [5m أو 40s أو ثوانٍ] | انسخ وقت افتراضي",
     adminOnly: false,
     ownerOnly: false,
@@ -52,6 +37,13 @@ module.exports = {
       }
       delays().set(threadID, seconds);
       return api.sendMessage(`✅ تم ضبط وقت انتظار النسخ على ${seconds} ثانية لهذه المحادثة، بدءاً من الجدولة التالية.`, threadID);
+    }
+    try {
+      if (!messages.get(threadID)) return api.sendMessage(
+        `⚠️ لم تُحدد رسالة لهذه المحادثة. استخدم ${global.commandPrefix || "/"}جريدة متبوعاً بالرسالة أولاً.`, threadID);
+    } catch (error) {
+      console.error(`[COPY MESSAGE] ${error.message}`);
+      return api.sendMessage("❌ تعذّر قراءة رسالة النسخ. تحقق من مساحة التخزين وحاول مجدداً.", threadID);
     }
     if (!global._michaelAutoJobs) global._michaelAutoJobs = new Map();
     if (global._michaelAutoJobs.has(threadID)) {
@@ -83,8 +75,21 @@ module.exports = {
             try { stopTyping(); } catch (_) {}
           }
           if (!active()) return;
+          let message;
+          try { message = messages.get(threadID); }
+          catch (error) {
+            console.error(`[COPY MESSAGE] ${error.message}`);
+            global._michaelAutoJobs.delete(threadID);
+            await api.sendMessage("⛔ توقف النسخ لتعذّر قراءة الرسالة المحفوظة.", threadID);
+            return;
+          }
+          if (!message) {
+            global._michaelAutoJobs.delete(threadID);
+            await api.sendMessage(`⛔ توقف النسخ: لم تعد هناك رسالة محفوظة. استخدم ${global.commandPrefix || "/"}جريدة لتحديد رسالة جديدة.`, threadID);
+            return;
+          }
           await new Promise((resolve) => {
-            api.sendMessage(AUTO_MSG, threadID, (err) => resolve(err));
+            api.sendMessage(message, threadID, (err) => resolve(err));
           });
         } catch (_) {}
         if (active()) scheduleNext();

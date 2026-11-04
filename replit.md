@@ -1,4 +1,4 @@
-# jarfis Bot v3.1 — WHITE Engine
+# Michael Bot v3.1 — Michael Engine
 
 ## المشروع
 بوت Facebook Messenger كامل مبني على @dongdev/fca-unofficial مع لوحة تحكم متكاملة.
@@ -78,7 +78,7 @@ data/bot.db               # قاعدة البيانات SQLite
 - قالب جاهز لأوامر جديدة
 - دعم إدراج مرجع الوسائط في الأوامر
 
-## أنظمة الحماية (WHITE Engine)
+## أنظمة الحماية (Michael Engine)
 - **Stealth** — تصفح صفحات، تدوير User-Agent، نوم ليلي (1-8 صباحاً)
 - **Human Typing** — تأخير كتابة واقعي قبل كل رد
 - **Outgoing Throttle** — حد رسائل لكل محادثة وعالمياً
