@@ -8,7 +8,8 @@ const fs   = require("fs-extra");
 const path = require("path");
 
 const ROOT      = path.join(__dirname, "../..");
-const BACKUP_DIR = path.join(ROOT, "backups");
+const { dataDir, accountPath, configPath, databasePath } = require("./paths");
+const BACKUP_DIR = path.join(process.env.BOT_DATA_DIR ? dataDir : ROOT, "backups");
 const MAX_BACKUPS = 24; // احتفظ بـ 24 نسخة (يوم كامل بنسخة كل ساعة)
 
 let _timer = null;
@@ -28,9 +29,11 @@ async function doBackup() {
     fs.ensureDirSync(dir);
 
     const filesToBackup = [
-      { src: path.join(ROOT, "account.txt"),         dst: "account.txt"  },
-      { src: path.join(ROOT, "config.json"),          dst: "config.json"  },
-      { src: path.join(ROOT, "data/bot.db"),          dst: "bot.db"       },
+      { src: accountPath, dst: "account.txt" },
+      ...[2, 3].map(slot => ({ src: path.join(dataDir, `account-${slot}.txt`), dst: `account-${slot}.txt` })),
+      { src: configPath, dst: "config.json" },
+      { src: databasePath, dst: "bot.db" },
+      ...[2, 3].map(slot => ({ src: path.join(dataDir, `bot-${slot}.db`), dst: `bot-${slot}.db` })),
     ];
 
     let backed = 0;
@@ -100,8 +103,9 @@ async function restoreBackup(ts) {
   if (!fs.existsSync(dir)) throw new Error("النسخة الاحتياطية غير موجودة");
 
   const filesToRestore = [
-    { src: path.join(dir, "account.txt"), dst: path.join(ROOT, "account.txt") },
-    { src: path.join(dir, "config.json"), dst: path.join(ROOT, "config.json") },
+    { src: path.join(dir, "account.txt"), dst: accountPath },
+    ...[2, 3].map(slot => ({ src: path.join(dir, `account-${slot}.txt`), dst: path.join(dataDir, `account-${slot}.txt`) })),
+    { src: path.join(dir, "config.json"), dst: configPath },
   ];
 
   let restored = 0;

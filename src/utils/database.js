@@ -3,7 +3,7 @@ const path = require("path");
 
 const sequelize = new Sequelize({
   dialect: "sqlite",
-  storage: path.join(__dirname, "../../data/bot.db"),
+  storage: require("./paths").databasePath,
   logging: false,
 });
 
@@ -39,20 +39,25 @@ async function initDB() {
   console.log("✅ Database initialized");
 }
 
+// Avoid Sequelize's findOrCreate transaction: user and thread lookups are
+// launched concurrently and SQLite permits only one writer at a time.
+async function findOrCreateRecord(model, key, value, name, fallback) {
+  const existing = await model.findByPk(value);
+  if (existing) return existing;
+  try {
+    return await model.create({ [key]: value, name: name || fallback });
+  } catch (error) {
+    // Another event may have created the same row between the lookup and insert.
+    if (error.name !== "SequelizeUniqueConstraintError") throw error;
+    return model.findByPk(value);
+  }
+}
 async function getOrCreateUser(userID, name) {
-  const [user] = await User.findOrCreate({
-    where: { userID },
-    defaults: { name: name || "Unknown" },
-  });
-  return user;
+  return findOrCreateRecord(User, "userID", userID, name, "Unknown");
 }
 
 async function getOrCreateThread(threadID, name) {
-  const [thread] = await Thread.findOrCreate({
-    where: { threadID },
-    defaults: { name: name || "Unknown Thread" },
-  });
-  return thread;
+  return findOrCreateRecord(Thread, "threadID", threadID, name, "Unknown Thread");
 }
 
 async function logCommand(userID, threadID, command, args, success = true) {

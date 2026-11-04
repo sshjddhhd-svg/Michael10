@@ -3,7 +3,7 @@
 const fs   = require("fs-extra");
 const path = require("path");
 
-const CONFIG_PATH = path.join(__dirname, "../../config.json");
+const CONFIG_PATH = require("../utils/paths").configPath;
 
 module.exports = {
   config: {
@@ -18,7 +18,7 @@ module.exports = {
 
   async run({ api, event, args, threadID, senderID }) {
     // فقط أدمنز لوحة التحكم يملكون هذه الصلاحية
-    if (!global.isDashboardAdmin || !global.isDashboardAdmin(senderID)) {
+    if (!event._dashboard && (!global.isDashboardAdmin || !global.isDashboardAdmin(senderID))) {
       return api.sendMessage(
         "❌ هذا الأمر لأدمنز لوحة التحكم فقط.",
         threadID
@@ -64,6 +64,7 @@ module.exports = {
     cfg.subAdminIDs.push(targetID);
     fs.writeJsonSync(CONFIG_PATH, cfg, { spaces: 2 });
     if (global.config) global.config.subAdminIDs = cfg.subAdminIDs;
+    global.syncSharedConfig?.();
 
     // احصل على اسم الشخص
     let name = targetID;
